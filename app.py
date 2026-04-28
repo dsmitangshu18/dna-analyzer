@@ -1,7 +1,11 @@
 import streamlit as st
 from Bio.Seq import Seq
+from Bio import Entrez
+
 import pandas as pd
 from datetime import datetime
+
+Entrez.email = "smitangshudas23@gmail.com"
 
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib import colors
@@ -103,6 +107,52 @@ if st.session_state["dna"]:
     for motif in motifs:
         positions = [i for i in range(len(dna)) if dna.startswith(motif, i)]
         st.success(f"{motif} → Positions: {positions}")
+
+# -------------------- NCBI SEARCH --------------------
+st.subheader("🌐 NCBI Sequence Search")
+
+st.caption("Search similar sequences in NCBI database")
+
+if st.button("Search NCBI Database"):
+
+    if not dna or len(dna) < 5:
+        st.warning("Please analyze a DNA sequence first")
+    else:
+        try:
+            with st.spinner("Fetching sequence details..."):
+
+                # Search in NCBI nucleotide database
+                handle = Entrez.esearch(
+                    db="nucleotide",
+                    term=dna[:50],
+                    retmax=3
+                )
+                record = Entrez.read(handle)
+                handle.close()
+
+                ids = record["IdList"]
+
+                if not ids:
+                    st.warning("No matches found")
+                else:
+                    st.success(f"Found {len(ids)} matches")
+
+                    # Fetch details
+                    fetch_handle = Entrez.efetch(
+                        db="nucleotide",
+                        id=",".join(ids),
+                        rettype="fasta",
+                        retmode="text"
+                    )
+ 
+                    st.subheader("🧬Retrived sequences")
+
+                    results = fetch_handle.read()
+                    fetch_handle.close()
+
+                    st.code(results)
+        except Exception as e:
+            st.error(f"Error: {e}")
 
     # ---------------- ORF ----------------
     st.subheader("🧬 ORF Finder")
