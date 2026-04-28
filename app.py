@@ -160,7 +160,7 @@ if st.button("TEST BLAST (FAKE)"):
     st.session_state.blast = FakeBlast()
 
 # DEBUG
-st.write("DEBUG BLAST:", st.session_state.get("blast"))
+#st.write("DEBUG BLAST:", st.session_state.get("blast"))
 
 # SHOW BLAST
 if st.session_state.get("blast"):
