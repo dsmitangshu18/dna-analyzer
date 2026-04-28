@@ -7,7 +7,6 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
-from datetime import datetime
 import io
 
 # ---------------- CONFIG ----------------
@@ -45,7 +44,9 @@ if st.button("Analyze"):
             rna = str(seq.transcribe())
             protein = str(seq.translate())
 
-            gc = (dna.count("G") + dna.count("C")) / len(dna) * 100
+            length = len(dna)
+
+            gc = (dna.count("G") + dna.count("C")) / length * 100
 
             counts = {
                 "A": dna.count("A"),
@@ -54,13 +55,22 @@ if st.button("Analyze"):
                 "C": dna.count("C")
             }
 
+            percentages = {
+                "A": (counts["A"] / length) * 100,
+                "T": (counts["T"] / length) * 100,
+                "G": (counts["G"] / length) * 100,
+                "C": (counts["C"] / length) * 100,
+            }
+
             st.session_state.analysis_data = {
                 "dna": dna,
                 "reverse": reverse_comp,
                 "rna": rna,
                 "protein": protein,
                 "gc": gc,
-                "counts": counts
+                "length": length,
+                "counts": counts,
+                "percentages": percentages
             }
 
         else:
@@ -80,6 +90,15 @@ if st.session_state.analysis_done:
     st.code(data["protein"])
 
     st.success(f"GC Content: {data['gc']:.2f}%")
+    st.info(f"Length: {data['length']} bases")
+
+    st.write("### Nucleotide Percentages")
+    st.write(
+        f"A: {data['percentages']['A']:.2f}% | "
+        f"T: {data['percentages']['T']:.2f}% | "
+        f"G: {data['percentages']['G']:.2f}% | "
+        f"C: {data['percentages']['C']:.2f}%"
+    )
 
     fig, ax = plt.subplots()
     ax.bar(data["counts"].keys(), data["counts"].values())
@@ -132,22 +151,22 @@ if st.session_state.ncbi_results:
     st.subheader("📄 Retrieved sequences")
     st.text_area("Preview", st.session_state.ncbi_results[:2000], height=300)
 
-# ---------------- PDF (WATERMARK + BORDER) ----------------
-def add_watermark_and_border(canvas_obj, doc):
+# ---------------- PDF WATERMARK + BORDER ----------------
+def add_watermark_and_border(c, doc):
     width, height = A4
 
-    # WATERMARK
-    canvas_obj.setFont("Helvetica", 40)
-    canvas_obj.setFillColorRGB(0.9, 0.9, 0.9)
-    canvas_obj.saveState()
-    canvas_obj.translate(width/2, height/2)
-    canvas_obj.rotate(45)
-    canvas_obj.drawCentredString(0, 0, "DNA ANALYZER")
-    canvas_obj.restoreState()
+    # watermark
+    c.setFont("Helvetica", 40)
+    c.setFillColorRGB(0.9, 0.9, 0.9)
+    c.saveState()
+    c.translate(width/2, height/2)
+    c.rotate(45)
+    c.drawCentredString(0, 0, "SMITANGSHU BIO LAB")
+    c.restoreState()
 
-    # BORDER
-    canvas_obj.setStrokeColor(colors.black)
-    canvas_obj.rect(30, 30, width-60, height-60)
+    # border
+    c.setStrokeColor(colors.black)
+    c.rect(30, 30, width-60, height-60)
 
 # ---------------- CREATE PDF ----------------
 def create_pdf():
@@ -160,22 +179,31 @@ def create_pdf():
     content.append(Paragraph("DNA Analysis Report", styles["Title"]))
     content.append(Spacer(1, 10))
 
-    # ANALYSIS DATA
     if st.session_state.analysis_done:
         data = st.session_state.analysis_data
 
         content.append(Paragraph(f"<b>DNA:</b> {data['dna']}", styles["Normal"]))
-        content.append(Paragraph(f"<b>Reverse Complement:</b> {data['reverse']}", styles["Normal"]))
+        content.append(Paragraph(f"<b>Reverse:</b> {data['reverse']}", styles["Normal"]))
         content.append(Paragraph(f"<b>RNA:</b> {data['rna']}", styles["Normal"]))
         content.append(Paragraph(f"<b>Protein:</b> {data['protein']}", styles["Normal"]))
+
+        content.append(Paragraph(f"<b>Length:</b> {data['length']} bases", styles["Normal"]))
         content.append(Paragraph(f"<b>GC Content:</b> {data['gc']:.2f}%", styles["Normal"]))
 
         counts = data["counts"]
-        content.append(Paragraph(f"<b>Nucleotide Count:</b> A:{counts['A']} T:{counts['T']} G:{counts['G']} C:{counts['C']}", styles["Normal"]))
+        content.append(Paragraph(
+            f"<b>Counts:</b> A:{counts['A']} T:{counts['T']} G:{counts['G']} C:{counts['C']}",
+            styles["Normal"]
+        ))
+
+        perc = data["percentages"]
+        content.append(Paragraph(
+            f"<b>Percentages:</b> A:{perc['A']:.2f}% T:{perc['T']:.2f}% G:{perc['G']:.2f}% C:{perc['C']:.2f}%",
+            styles["Normal"]
+        ))
 
         content.append(Spacer(1, 10))
 
-    # NCBI DATA
     if st.session_state.ncbi_results:
         content.append(Paragraph("<b>NCBI Results:</b>", styles["Heading2"]))
         content.append(Paragraph(st.session_state.ncbi_results[:1000], styles["Normal"]))
