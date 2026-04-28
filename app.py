@@ -115,7 +115,7 @@ st.caption("Search similar sequences in NCBI database")
 
 if st.button("Search NCBI Database"):
 
-    if not dna or len(dna) < 5:
+    if "dna" not in locals() or not dna or len(dna) < 5:
         st.warning("Please analyze a DNA sequence first")
     else:
         try:
