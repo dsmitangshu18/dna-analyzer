@@ -151,66 +151,89 @@ if st.session_state.blast:
                 st.write(f"E-value: {hsp.expect}")
                 st.write(f"Quality: {quality(hsp.expect)}")
 
-# ---------------- PDF ----------------
-def add_watermark(c):
-    c.saveState()
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import letter
+from io import BytesIO
 
-    c.setFillGray(0.97)
-    c.translate(300, 400)
-    c.rotate(45)
+# -------------------- PAGE DESIGN (WATERMARK + BORDER) --------------------
+def add_page_design(canvas, doc):
+    canvas.saveState()
 
-    c.drawCentredString(0, 0, "Smitangshu Bio Lab")
-    c.drawCentredString(200, 200, "Smitangshu Bio Lab")
+    # ----- WATERMARK -----
+    canvas.setFillGray(0.9)  # make it visible first (you can change to 0.95 later)
+    canvas.setFont("Helvetica-Bold", 70)
 
-    c.restoreState()
+    canvas.translate(300, 400)
+    canvas.rotate(45)
 
-def add_border(c):
-    c.setLineWidth(2)
-    c.rect(30, 30, 530, 730)
+    canvas.drawCentredString(0, 0, "Smitangshu Bio Lab")
+    canvas.drawCentredString(200, 200, "Smitangshu Bio Lab")
 
+    canvas.restoreState()
+
+    # ----- BORDER -----
+    canvas.setLineWidth(2)
+    canvas.rect(30, 30, 530, 730)
+
+
+# -------------------- PDF GENERATOR --------------------
 def make_pdf():
     buffer = BytesIO()
+
     doc = SimpleDocTemplate(buffer, pagesize=letter)
     styles = getSampleStyleSheet()
+
     story = []
 
-    story.append(Paragraph("DNA Analyzer Report", styles['Heading1']))
+    # ----- TITLE -----
+    story.append(Paragraph("DNA Analyzer Report", styles["Heading1"]))
     story.append(Spacer(1, 10))
 
-    if st.session_state.analysis:
-        a = st.session_state.analysis
-        story.append(Paragraph(f"Length: {a['length']}", styles['Normal']))
-        story.append(Paragraph(f"GC: {a['gc']}%", styles['Normal']))
-        story.append(Paragraph(str(a["counts"]), styles['Normal']))
-        story.append(Paragraph(str(a["rna"]), styles['Normal']))
-        story.append(Paragraph(str(a["protein"]), styles['Normal']))
+    # ----- DNA ANALYSIS (example placeholders, replace with your variables) -----
+    story.append(Paragraph(f"Length: {len(st.session_state.dna)}", styles["Normal"]))
+    story.append(Paragraph(f"GC Content: {st.session_state.gc:.2f}%", styles["Normal"]))
+    story.append(Paragraph(f"Counts: {st.session_state.counts}", styles["Normal"]))
+    story.append(Paragraph(f"RNA: {st.session_state.rna}", styles["Normal"]))
+    story.append(Paragraph(f"Protein: {st.session_state.protein}", styles["Normal"]))
 
-    if st.session_state.gene:
-        story.append(Paragraph("Gene Results", styles['Heading2']))
-        story.append(Paragraph(st.session_state.gene[:1000], styles['Normal']))
+    story.append(Spacer(1, 12))
 
-    if st.session_state.blast:
-        story.append(Paragraph("BLAST Results", styles['Heading2']))
+    # ----- GENE SEARCH RESULTS -----
+    if st.session_state.get("gene_results"):
+        story.append(Paragraph("NCBI Gene Results", styles["Heading2"]))
+        story.append(Spacer(1, 8))
+        story.append(Paragraph(st.session_state.gene_results[:2000], styles["Normal"]))
+
+    story.append(Spacer(1, 12))
+
+    # ----- BLAST RESULTS -----
+    if st.session_state.get("blast"):
+        story.append(Paragraph("BLAST Results", styles["Heading2"]))
+        story.append(Spacer(1, 8))
+
         for align in st.session_state.blast.alignments[:2]:
             for hsp in align.hsps:
-                story.append(Paragraph(align.title, styles['Normal']))
-                story.append(Paragraph(f"E-value: {hsp.expect}", styles['Normal']))
+                story.append(Paragraph(align.title, styles["Normal"]))
+                story.append(Paragraph(f"E-value: {hsp.expect}", styles["Normal"]))
+                story.append(Spacer(1, 6))
 
-    def add_page_design(canvas, doc):
-        add_border(canvas)
-        add_watermark(canvas)
-
+    # 🔥 BUILD PDF (THIS IS THE MAGIC LINE)
     doc.build(
         story,
         onFirstPage=add_page_design,
-        onLaterPages=add_page_design)
+        onLaterPages=add_page_design
+    )
 
     buffer.seek(0)
     return buffer
 
+
+# -------------------- DOWNLOAD BUTTON --------------------
 if st.button("Download Report"):
     pdf = make_pdf()
     st.download_button("Download PDF", pdf, "dna_report.pdf")
+
 
 # ---------------- FOOTER ----------------
 st.markdown("---")
