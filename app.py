@@ -116,11 +116,16 @@ if st.button("Run BLAST"):
 
                 blast_records = list(NCBIXML.parse(result))
 
-               if blast_records:
-                      st.session_state.blast = blast_records[0]
-               else:
-                 st.session_state.blast= None
-                 st.warning("No BLAST results found")
+                if blast_records:
+                    st.session_state.blast = blast_records[0]
+                else:
+                    st.session_state.blast = None
+                    st.warning("No BLAST results found")
+
+            except Exception as e:
+                st.error(f"BLAST Error: {e}")
+    else:
+        st.warning("Run DNA analysis first!")
 
 # SHOW BLAST
 if st.session_state.blast:
