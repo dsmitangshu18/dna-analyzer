@@ -142,17 +142,19 @@ if st.session_state.blast:
 def add_watermark(c):
     c.saveState()
 
-    c.setFillGray(0.92)
-    c.setFont("Helvetica-Bold", 60)
-
+    from reportlab.lib.pagesizes import letter
     width, height = letter
 
-    # Single clean diagonal watermark
-            c.translate(width/2, height/2)
-            c.rotate(45)
+    c.setFillGray(0.92)
+    c.setFont("Helvetica-Bold", 80)
 
-            c.drawCentredString(0, 0, "Smitangshu Bio Lab")
-            c.restoreState()
+    # Perfect centered diagonal watermark
+    c.translate(width / 2, height / 2)
+    c.rotate(45)
+
+    c.drawCentredString(0, 0, "Smitangshu Bio Lab")
+
+    c.restoreState()
 
 
 def add_border(c):
