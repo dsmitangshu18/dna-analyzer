@@ -105,37 +105,63 @@ if st.session_state.gene_results:
     st.subheader("📄 Gene Results")
     st.text_area("Preview", st.session_state.gene_results[:2000], height=300)
 
-# ------------------ BLAST ------------------
+# ---------------- BLAST ----------------
 st.subheader("🔬 BLAST")
 
+# 🔴 REAL BLAST BUTTON
 if st.button("Run BLAST"):
     if st.session_state.dna:
         with st.spinner("Running BLAST..."):
             try:
                 result = NCBIWWW.qblast("blastn", "nt", st.session_state.dna)
-
                 blast_records = list(NCBIXML.parse(result))
 
                 if blast_records:
                     st.session_state.blast = blast_records[0]
+                    st.success("BLAST completed!")
                 else:
                     st.session_state.blast = None
-                    st.warning("No BLAST results found")
+                    st.warning("No BLAST results found.")
 
             except Exception as e:
-                st.error(f"BLAST Error: {e}")
+                st.session_state.blast = None
+                import traceback
+                st.error(f"BLAST failed: {e}")
+                st.text(traceback.format_exc())
     else:
         st.warning("Run DNA analysis first!")
 
+# 🟢 👉 PASTE FAKE BLAST BUTTON HERE 👇
+if st.button("TEST BLAST (FAKE)"):
+    class FakeHSP:
+        expect = 0.0001
+
+    class FakeAlign:
+        title = "Fake Gene Match - Homo sapiens"
+        hsps = [FakeHSP()]
+
+    class FakeBlast:
+        alignments = [FakeAlign(), FakeAlign()]
+
+    st.session_state.blast = FakeBlast()
+
+# DEBUG
+st.write("DEBUG BLAST:", st.session_state.get("blast"))
+
 # SHOW BLAST
-if st.session_state.blast:
+if st.session_state.get("blast"):
     st.subheader("🔎 BLAST Results")
 
-    for align in st.session_state.blast.alignments[:2]:
-        st.write(align.title)
+    found = False
 
+    for align in st.session_state.blast.alignments[:3]:
         for hsp in align.hsps[:1]:
+            found = True
+            st.write(align.title)
             st.write(f"E-value: {hsp.expect}")
+
+    if not found:
+        st.warning("No alignments found.")
 
 # ------------------ PDF ------------------
 
