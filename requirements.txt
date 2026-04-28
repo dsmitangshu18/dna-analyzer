@@ -1,4 +1,5 @@
 streamlit
 biopython
 pandas
+matplotlib
 reportlab
