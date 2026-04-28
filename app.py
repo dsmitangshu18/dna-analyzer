@@ -58,6 +58,21 @@ if st.session_state.dna:
     st.write(f"RNA: {st.session_state.rna}")
     st.write(f"Protein: {st.session_state.protein}")
 
+    import matplotlib.pyplot as plt
+
+    fig1, ax1= plt.subplots()
+    ax1.bar(["GC Content"], [st.session_state.gc])
+    ax1.set_ylabel("Percentage")
+    ax1.set_title("GC Content")
+    st.pyplot(fig1)
+
+    counts= st.session_state.counts
+
+    fig2, ax2= plt.subplots()
+    ax2.bar(counts.keys(), counts.values())
+    ax2.set_title("Nucleotide Distribution")
+    st.pyplot(fig2)
+
 # ------------------ NCBI GENE SEARCH ------------------
 st.subheader("🧬 NCBI Gene Search")
 
@@ -98,14 +113,14 @@ if st.button("Run BLAST"):
         with st.spinner("Running BLAST..."):
             try:
                 result = NCBIWWW.qblast("blastn", "nt", st.session_state.dna)
-                blast_record = NCBIXML.read(result)
 
-                st.session_state.blast = blast_record
+                blast_records = list(NCBIXML.parse(result))
 
-            except Exception as e:
-                st.error(f"BLAST Error: {e}")
-    else:
-        st.warning("Run DNA analysis first!")
+               if blast_records:
+                      st.session_state.blast = blast_records[0]
+               else:
+                 st.session_state.blast= None
+                 st.warning("No BLAST results found")
 
 # SHOW BLAST
 if st.session_state.blast:
@@ -113,28 +128,27 @@ if st.session_state.blast:
 
     for align in st.session_state.blast.alignments[:2]:
         st.write(align.title)
-        for hsp in align.hsps:
+
+        for hsp in align.hsps[:1]:
             st.write(f"E-value: {hsp.expect}")
 
 # ------------------ PDF ------------------
 
 def add_watermark(c):
     c.saveState()
-    c.setFillGray(0.9)
-    c.setFont("Helvetica-Bold", 80)
+
+    c.setFillGray(0.92)
+    c.setFont("Helvetica-Bold", 60)
 
     width, height = letter
 
-    # Multiple diagonal stamps (corner-to-corner effect)
-    for x in range(-200, int(width)+200, 300):
-        for y in range(-200, int(height)+200, 300):
-            c.saveState()
-            c.translate(x, y)
+    # Single clean diagonal watermark
+            c.translate(width/2, height/2)
             c.rotate(45)
+
             c.drawCentredString(0, 0, "Smitangshu Bio Lab")
             c.restoreState()
 
-    c.restoreState()
 
 def add_border(c):
     c.setLineWidth(2)
@@ -180,7 +194,7 @@ def make_pdf():
 
         for align in st.session_state.blast.alignments[:2]:
             story.append(Paragraph(align.title, styles["Normal"]))
-            for hsp in align.hsps:
+            for hsp in align.hsps [:1]:
                 story.append(Paragraph(f"E-value: {hsp.expect}", styles["Normal"]))
 
     doc.build(story, onFirstPage=add_page_design, onLaterPages=add_page_design)
