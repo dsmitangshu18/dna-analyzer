@@ -124,7 +124,7 @@ if st.button("Search NCBI Database"):
                 # Search in NCBI nucleotide database
                 handle = Entrez.esearch(
                     db="nucleotide",
-                    term=dna[:50],
+                    term= f"{dna[:50]}[All Fields]"
                     retmax=3
                 )
                 record = Entrez.read(handle)
