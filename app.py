@@ -108,7 +108,7 @@ if st.button("Search Gene in NCBI"):
                 handle = Entrez.esearch(
                     db="nucleotide",
                     term=gene_query,
-                    retmax=5
+                    retmax=2
                 )
                 record = Entrez.read(handle)
                 handle.close()
@@ -129,8 +129,16 @@ if st.button("Search Gene in NCBI"):
                     results = fetch_handle.read()
                     fetch_handle.close()
 
-                    st.subheader("📄 Gene Results")
-                    st.code(results)
+                    st.subheader("📄 Retrived sequences")
+
+                    st.text_area("Preview (first 2000 chars)", results[:2000], height=300)
+
+                    st.download_button(
+                        label="⬇️Download full results",
+                        data=results,
+                        file_name="ncbi_results.fasta",
+                        mime="text/plain"
+                     )
 
         except Exception as e:
             st.error(f"Error: {e}")
