@@ -1,17 +1,10 @@
 import streamlit as st
 from Bio.Seq import Seq
 from Bio import Entrez
+import re
 
-import pandas as pd
-from datetime import datetime
-
+# Required for NCBI
 Entrez.email = "smitangshudas23@gmail.com"
-
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.pdfgen import canvas
 
 # ---------------- PAGE ----------------
 st.set_page_config(page_title="DNA Analyzer", layout="wide")
@@ -19,88 +12,42 @@ st.set_page_config(page_title="DNA Analyzer", layout="wide")
 st.title("🧬 DNA Sequence Analyzer")
 st.caption("Professional Bioinformatics Tool")
 
-# ---------------- SESSION ----------------
-if "dna" not in st.session_state:
-    st.session_state["dna"] = None
-
 # ---------------- INPUT ----------------
-uploaded_file = st.file_uploader("Upload FASTA file", type=["txt", "fasta", "fa"])
-dna_text = st.text_area("Enter DNA Sequence")
+st.subheader("📥 Enter DNA Sequence")
 
-# ---------------- ANALYZE ----------------
+dna_input = st.text_area("Paste DNA sequence (A, T, G, C only)")
+
+# Validate DNA
+def is_valid_dna(seq):
+    return re.fullmatch(r"[ATGCatgc]+", seq) is not None
+
+dna = ""
+
 if st.button("Analyze"):
-
-    if uploaded_file:
-        content = uploaded_file.read().decode("utf-8")
-        dna = "".join([l for l in content.split("\n") if not l.startswith(">")])
+    if not dna_input:
+        st.warning("Please enter a DNA sequence")
+    elif not is_valid_dna(dna_input):
+        st.error("❌ Invalid DNA sequence! Use only A, T, G, C")
     else:
-        dna = dna_text
+        dna = dna_input.upper()
+        st.success("✅ Valid DNA sequence")
 
-    dna = dna.upper().replace(" ", "").replace("\n", "")
+        # ---------------- BASIC ANALYSIS ----------------
+        seq = Seq(dna)
+        reverse_comp = str(seq.reverse_complement())
+        rna = str(seq.transcribe())
+        protein = str(seq.translate())
 
-    if not dna:
-        st.warning("Enter DNA sequence")
-        st.stop()
+        st.subheader("🧬 Sequences")
+        st.code(dna)
+        st.code(reverse_comp)
+        st.code(rna)
+        st.code(protein)
 
-    if not set(dna).issubset(set("ATGC")):
-        st.error("Invalid DNA sequence")
-        st.stop()
-
-    st.session_state["dna"] = dna
-
-
-# ---------------- MAIN ----------------
-if st.session_state["dna"]:
-
-    dna = st.session_state["dna"]
-    sequence = Seq(dna)
-
-    gc = (dna.count("G") + dna.count("C")) / len(dna) * 100
-    at = 100 - gc
-
-    reverse_comp = str(sequence.reverse_complement())
-    rna = str(sequence.transcribe())
-    protein = str(sequence.translate(to_stop=True))
-
-    # ---------------- RESULTS ----------------
-    st.subheader("📊 Results")
-    col1, col2 = st.columns(2)
-    col1.metric("Length", len(dna))
-    col2.metric("GC %", round(gc, 2))
-
-    # ---------------- NUCLEOTIDE GRAPH ----------------
-    st.subheader("🧪 Nucleotide Count")
-
-    counts = {
-        "A": dna.count("A"),
-        "T": dna.count("T"),
-        "G": dna.count("G"),
-        "C": dna.count("C")
-    }
-    st.bar_chart(counts)
-
-    # ---------------- GC GRAPH ----------------
-    st.subheader("📈 GC Content Across Sequence")
-
-    window_size = st.slider("GC Window Size", 3, 20, 5)
-
-    gc_values = []
-    for i in range(len(dna) - window_size + 1):
-        window = dna[i:i+window_size]
-        gc_percent = (window.count("G") + window.count("C")) / window_size * 100
-        gc_values.append(gc_percent)
-
-    st.line_chart(gc_values)
-
-    # ---------------- SEQUENCES ----------------
-    st.subheader("🧬 Sequences")
-    st.code(dna)
-    st.code(reverse_comp)
-    st.code(rna)
-    st.code(protein)
-
-    # ---------------- MOTIF ----------------
+# ---------------- MOTIF ----------------
+if dna:
     st.subheader("🔍 Motif Finder")
+
     motifs_input = st.text_input("Enter motifs (comma separated)", "ATG")
     motifs = [m.strip().upper() for m in motifs_input.split(",") if m.strip()]
 
@@ -108,23 +55,18 @@ if st.session_state["dna"]:
         positions = [i for i in range(len(dna)) if dna.startswith(motif, i)]
         st.success(f"{motif} → Positions: {positions}")
 
-# -------------------- NCBI SEARCH --------------------
-st.subheader("🌐 NCBI Sequence Search")
+# ---------------- NCBI SEARCH (DNA) ----------------
+st.subheader("🌐 NCBI Search (from DNA)")
 
-st.caption("Search similar sequences in NCBI database")
-
-if st.button("Search NCBI Database"):
-
-    if "dna" not in locals() or not dna or len(dna) < 5:
-        st.warning("Please analyze a DNA sequence first")
+if st.button("Search NCBI using DNA"):
+    if not dna or len(dna) < 10:
+        st.warning("Please analyze a valid DNA sequence first")
     else:
         try:
-            with st.spinner("Fetching sequence details..."):
-
-                # Search in NCBI nucleotide database
+            with st.spinner("Searching NCBI..."):
                 handle = Entrez.esearch(
                     db="nucleotide",
-                    term= f"{dna[:50]}[All Fields]",
+                    term=f"{dna[:50]}[All Fields]",
                     retmax=3
                 )
                 record = Entrez.read(handle)
@@ -137,24 +79,64 @@ if st.button("Search NCBI Database"):
                 else:
                     st.success(f"Found {len(ids)} matches")
 
-                    # Fetch details
                     fetch_handle = Entrez.efetch(
                         db="nucleotide",
                         id=",".join(ids),
                         rettype="fasta",
                         retmode="text"
                     )
- 
-                    st.subheader("🧬Retrived sequences")
-
                     results = fetch_handle.read()
                     fetch_handle.close()
 
+                    st.subheader("📄 Retrieved sequences")
                     st.code(results)
+
         except Exception as e:
             st.error(f"Error: {e}")
 
-    # ---------------- ORF ----------------
+# ---------------- NEW: GENE SEARCH ----------------
+st.subheader("🔎 NCBI Gene Search")
+
+gene_query = st.text_input("Enter gene name (e.g. BRCA1)")
+
+if st.button("Search Gene in NCBI"):
+    if not gene_query:
+        st.warning("Enter a gene name")
+    else:
+        try:
+            with st.spinner("Searching gene in NCBI..."):
+                handle = Entrez.esearch(
+                    db="nucleotide",
+                    term=gene_query,
+                    retmax=5
+                )
+                record = Entrez.read(handle)
+                handle.close()
+
+                ids = record["IdList"]
+
+                if not ids:
+                    st.warning("No gene matches found")
+                else:
+                    st.success(f"Found {len(ids)} matches")
+
+                    fetch_handle = Entrez.efetch(
+                        db="nucleotide",
+                        id=",".join(ids),
+                        rettype="fasta",
+                        retmode="text"
+                    )
+                    results = fetch_handle.read()
+                    fetch_handle.close()
+
+                    st.subheader("📄 Gene Results")
+                    st.code(results)
+
+        except Exception as e:
+            st.error(f"Error: {e}")
+
+# ---------------- ORF ----------------
+if dna:
     st.subheader("🧬 ORF Finder")
 
     def find_orfs(dna):
@@ -174,67 +156,11 @@ if st.button("Search NCBI Database"):
                 i += 3
         return orfs
 
-    orfs = find_orfs(dna)
+    results = find_orfs(dna)
 
-    if orfs:
-        for i, (frame, start, end, seq) in enumerate(orfs, 1):
-            with st.expander(f"ORF {i} (Length {len(seq)})"):
-                  st.write(f"Frame: {frame} | Start: {start} | End: {end}")
-                  st.code(seq)
-    else:
-         st.info("No ORFs found in this sequence")
-
-    # ---------------- PDF ----------------
-    def draw_border(canvas, doc):
-        canvas.setLineWidth(2)
-        canvas.rect(20, 20, 555, 802)
-
-    def draw_watermark(canvas, doc):
-        canvas.saveState()
-        canvas.setFont("Helvetica-Bold", 50)
-        canvas.setFillColorRGB(0.9, 0.9, 0.9)
-        canvas.translate(300, 400)
-        canvas.rotate(45)
-        canvas.drawCentredString(0, 0, "SMITANGSHU BIO LAB")
-        canvas.restoreState()
-
-    def generate_pdf():
-        doc = SimpleDocTemplate("report.pdf", pagesize=A4)
-        styles = getSampleStyleSheet()
-
-        elements = []
-
-        elements.append(Paragraph("DNA Analysis Report", styles["Title"]))
-        elements.append(Spacer(1, 10))
-
-        table = Table([
-            ["Length", len(dna)],
-            ["GC %", round(gc, 2)],
-            ["AT %", round(at, 2)]
-        ])
-        table.setStyle(TableStyle([
-            ("GRID", (0,0), (-1,-1), 1, colors.black),
-            ("BACKGROUND", (0,0), (-1,0), colors.lightgrey)
-        ]))
-
-        elements.append(table)
-        elements.append(Spacer(1, 10))
-
-        elements.append(Paragraph(f"<b>DNA:</b> {dna}", styles["Normal"]))
-        elements.append(Paragraph(f"<b>Protein:</b> {protein}", styles["Normal"]))
-
-        doc.build(elements,
-                  onFirstPage=lambda c, d: [draw_border(c,d), draw_watermark(c,d)],
-                  onLaterPages=lambda c, d: [draw_border(c,d), draw_watermark(c,d)])
-
-        with open("report.pdf", "rb") as f:
-            return f.read()
-
-    pdf = generate_pdf()
-
-    st.download_button("📄 Download Professional Report", pdf, "dna_report.pdf")
-
+    for idx, (frame, start, end, seq) in enumerate(results):
+        with st.expander(f"ORF {idx+1} (Length {len(seq)})"):
+            st.code(seq)
 
 # ---------------- FOOTER ----------------
-st.markdown("---")
 st.markdown("💖 Made with 💕 by Smitangshu")
