@@ -196,11 +196,14 @@ def make_pdf():
                 story.append(Paragraph(align.title, styles['Normal']))
                 story.append(Paragraph(f"E-value: {hsp.expect}", styles['Normal']))
 
-    def draw(canvas, doc):
+    def add_page_design(canvas, doc):
         add_border(canvas)
         add_watermark(canvas)
 
-    doc.build(story, onFirstPage=draw, onLaterPages=draw)
+    doc.build(
+        story,
+        onFirstPage=add_page_design,
+        onLaterPages=add_page_design)
 
     buffer.seek(0)
     return buffer
