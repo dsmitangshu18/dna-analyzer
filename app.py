@@ -6,34 +6,40 @@ import matplotlib.pyplot as plt
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 from io import BytesIO
 
-Entrez.email = "your_email@example.com"
+Entrez.email = "smitangshudas23@gmail.com"
 
 st.set_page_config(page_title="DNA Analyzer", layout="wide")
 
 # ---------------- STATE ----------------
 if "analysis" not in st.session_state:
     st.session_state.analysis = None
-if "ncbi" not in st.session_state:
-    st.session_state.ncbi = None
+if "gene" not in st.session_state:
+    st.session_state.gene = None
 if "blast" not in st.session_state:
     st.session_state.blast = None
 
-# ---------------- HEADER ----------------
+# ---------------- INPUT ----------------
 st.title("🧬 DNA Analyzer")
 
 dna_input = st.text_area("Enter DNA Sequence")
 
+# CLEAN INPUT
+def clean_dna(seq):
+    return seq.replace("\n", "").replace(" ", "").upper()
+
 def valid_dna(seq):
-    return all(c in "ATGC" for c in seq.upper())
+    return all(c in "ATGC" for c in seq)
 
 # ---------------- ANALYZE ----------------
 if st.button("Analyze"):
-    if not dna_input or not valid_dna(dna_input):
+    dna = clean_dna(dna_input)
+
+    if not dna or not valid_dna(dna):
         st.error("Invalid DNA sequence")
     else:
-        dna = dna_input.upper()
         seq = Seq(dna)
 
         length = len(dna)
@@ -67,64 +73,38 @@ if st.session_state.analysis:
     st.subheader("📊 DNA Analysis")
     st.write(f"Length: {data['length']}")
     st.write(f"GC Content: {data['gc']}%")
-
-    st.write("Nucleotide Counts:", data["counts"])
+    st.write(data["counts"])
     st.write("RNA:", data["rna"])
     st.write("Protein:", data["protein"])
 
-    # Graph
     fig, ax = plt.subplots()
     ax.bar(data["counts"].keys(), data["counts"].values())
     st.pyplot(fig)
 
-# ---------------- NCBI SEARCH ----------------
-st.subheader("🌐 NCBI Sequence Search")
-
-if st.button("Search NCBI"):
-    if st.session_state.analysis:
-        dna = st.session_state.analysis["dna"]
-
-        with st.spinner("Searching NCBI..."):
-            handle = Entrez.esearch(
-                db="nucleotide",
-                term=f"{dna[:50]}[All Fields]",
-                retmax=3
-            )
-            record = Entrez.read(handle)
-            ids = record["IdList"]
-
-            if ids:
-                fetch = Entrez.efetch(
-                    db="nucleotide",
-                    id=",".join(ids),
-                    rettype="fasta",
-                    retmode="text"
-                )
-                results = fetch.read()
-                st.session_state.ncbi = results
-            else:
-                st.warning("No matches found")
-
-# SHOW NCBI
-if st.session_state.ncbi:
-    st.subheader("📄 NCBI Results")
-    st.text_area("Preview", st.session_state.ncbi[:2000], height=300)
-
-# ---------------- GENE SEARCH ----------------
+# ---------------- NCBI GENE SEARCH ----------------
 st.subheader("🧬 NCBI Gene Search")
-gene = st.text_input("Enter gene name")
+
+gene_query = st.text_input("Enter gene name (e.g. BRCA1)")
 
 if st.button("Search Gene"):
-    if gene:
-        handle = Entrez.esearch(db="nucleotide", term=gene, retmax=2)
+    if gene_query:
+        handle = Entrez.esearch(db="nucleotide", term=gene_query, retmax=3)
         record = Entrez.read(handle)
         ids = record["IdList"]
 
         if ids:
-            fetch = Entrez.efetch(db="nucleotide", id=",".join(ids),
-                                 rettype="fasta", retmode="text")
-            results = fetch.read()
-            st.text_area("Gene Results", results[:2000], height=300)
+            fetch = Entrez.efetch(
+                db="nucleotide",
+                id=",".join(ids),
+                rettype="fasta",
+                retmode="text"
+            )
+            st.session_state.gene = fetch.read()
+
+# SHOW GENE RESULT
+if st.session_state.gene:
+    st.subheader("📄 Gene Results")
+    st.text_area("Preview", st.session_state.gene[:2000], height=300)
 
 # ---------------- BLAST ----------------
 st.subheader("🔬 BLAST")
@@ -138,13 +118,18 @@ def quality(e):
 
 if st.button("Run BLAST"):
     if st.session_state.analysis:
-        dna = st.session_state.analysis["dna"]
+        dna = st.session_state.analysis["dna"][:200]
 
-        with st.spinner("Running BLAST..."):
-            result = NCBIWWW.qblast("blastn", "nt", dna)
-            blast_record = NCBIXML.read(result)
+        try:
+            with st.spinner("Running BLAST..."):
+                result = NCBIWWW.qblast("blastn", "nt", dna)
+                blast_record = NCBIXML.read(result)
 
-            st.session_state.blast = blast_record
+                st.session_state.blast = blast_record
+                st.success("BLAST completed")
+
+        except Exception as e:
+            st.error(f"BLAST failed: {e}")
 
 # SHOW BLAST
 if st.session_state.blast:
@@ -161,18 +146,20 @@ if st.session_state.blast:
             if count > 3:
                 break
 
-            with st.expander(f"{align.title[:60]}"):
+            with st.expander(align.title[:60]):
                 st.write(f"Score: {hsp.score}")
                 st.write(f"E-value: {hsp.expect}")
                 st.write(f"Quality: {quality(hsp.expect)}")
 
-                st.code(f"""
-Query: {hsp.query}
-Match: {hsp.match}
-Sbjct: {hsp.sbjct}
-""")
-
 # ---------------- PDF ----------------
+def add_watermark(c):
+    c.setFont("Helvetica", 40)
+    c.setFillGray(0.9)
+    c.drawCentredString(300, 400, "DNA ANALYZER")
+
+def add_border(c):
+    c.rect(20, 20, 550, 750)
+
 def make_pdf():
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
@@ -186,31 +173,33 @@ def make_pdf():
         a = st.session_state.analysis
         story.append(Paragraph(f"Length: {a['length']}", styles['Normal']))
         story.append(Paragraph(f"GC: {a['gc']}%", styles['Normal']))
-        story.append(Paragraph(f"Counts: {a['counts']}", styles['Normal']))
-        story.append(Paragraph(f"RNA: {a['rna']}", styles['Normal']))
-        story.append(Paragraph(f"Protein: {a['protein']}", styles['Normal']))
+        story.append(Paragraph(str(a["counts"]), styles['Normal']))
+        story.append(Paragraph(str(a["rna"]), styles['Normal']))
+        story.append(Paragraph(str(a["protein"]), styles['Normal']))
 
-    if st.session_state.ncbi:
-        story.append(Paragraph("NCBI Results", styles['Heading2']))
-        story.append(Paragraph(st.session_state.ncbi[:1000], styles['Normal']))
+    if st.session_state.gene:
+        story.append(Paragraph("Gene Results", styles['Heading2']))
+        story.append(Paragraph(st.session_state.gene[:1000], styles['Normal']))
 
     if st.session_state.blast:
         story.append(Paragraph("BLAST Results", styles['Heading2']))
         for align in st.session_state.blast.alignments[:2]:
             for hsp in align.hsps:
-                story.append(Paragraph(f"{align.title}", styles['Normal']))
+                story.append(Paragraph(align.title, styles['Normal']))
                 story.append(Paragraph(f"E-value: {hsp.expect}", styles['Normal']))
 
-    story.append(Spacer(1, 20))
-    story.append(Paragraph("Made with 💕 by Smitangshu", styles['Normal']))
+    def draw(canvas, doc):
+        add_border(canvas)
+        add_watermark(canvas)
 
-    doc.build(story)
+    doc.build(story, onFirstPage=draw, onLaterPages=draw)
+
     buffer.seek(0)
     return buffer
 
 if st.button("Download Report"):
     pdf = make_pdf()
-    st.download_button("Download PDF", pdf, "report.pdf")
+    st.download_button("Download PDF", pdf, "dna_report.pdf")
 
 # ---------------- FOOTER ----------------
 st.markdown("---")
