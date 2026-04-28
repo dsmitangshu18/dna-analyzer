@@ -153,12 +153,20 @@ if st.session_state.blast:
 
 # ---------------- PDF ----------------
 def add_watermark(c):
-    c.setFont("Helvetica", 40)
-    c.setFillGray(0.9)
-    c.drawCentredString(300, 400, "DNA ANALYZER")
+    c.saveState()
+
+    c.setFillGray(0.97)
+    c.translate(300, 400)
+    c.rotate(45)
+
+    c.drawCentredString(0, 0, "Smitangshu Bio Lab")
+    c.drawCentredString(200, 200, "Smitangshu Bio Lab")
+
+    c.restoreState()
 
 def add_border(c):
-    c.rect(20, 20, 550, 750)
+    c.setLineWidth(2)
+    c.rect(30, 30, 530, 730)
 
 def make_pdf():
     buffer = BytesIO()
