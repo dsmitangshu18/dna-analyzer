@@ -18,7 +18,7 @@ for key in ["dna", "protein", "rna", "blast", "ncbi_results", "orfs"]:
     if key not in st.session_state:
         st.session_state[key] = None
 
-# ================= ORF FUNCTION =================
+# ================= ORF =================
 def find_orfs(dna):
     stop_codons = ["TAA", "TAG", "TGA"]
     orfs = []
@@ -26,74 +26,76 @@ def find_orfs(dna):
     for frame in range(3):
         i = frame
         while i < len(dna) - 2:
-            codon = dna[i:i+3]
-
-            if codon == "ATG":
+            if dna[i:i+3] == "ATG":
                 for j in range(i, len(dna)-2, 3):
-                    stop = dna[j:j+3]
-
-                    if stop in stop_codons:
-                        orf_seq = dna[i:j+3]
+                    if dna[j:j+3] in stop_codons:
                         orfs.append({
                             "start": i,
                             "end": j+3,
-                            "sequence": orf_seq,
-                            "length": len(orf_seq)
+                            "sequence": dna[i:j+3],
+                            "length": j+3 - i
                         })
                         break
                 i = j
             else:
                 i += 3
-
     return orfs
 
-# ================= UI =================
+# ================= INPUT =================
 st.title("🧬 DNA Analyzer Pro")
 
 dna_input = st.text_area("Enter DNA Sequence")
 
-# ================= ANALYZE =================
-if st.button("🔬 Analyze DNA"):
+if st.button("🔬 Analyze Sequence"):
     dna = dna_input.upper().replace("\n", "").strip()
 
-    if dna:
-        st.session_state.dna = dna
+    # ✅ VALIDATION
+    if not dna:
+        st.warning("⚠ Please enter a DNA sequence")
+        st.stop()
 
+    if not set(dna).issubset(set("ATGC")):
+        st.error("❌ Invalid DNA sequence (Only A, T, G, C allowed)")
+        st.stop()
+
+    with st.spinner("Analyzing DNA..."):
+        st.session_state.dna = dna
         seq = Seq(dna)
+
         st.session_state.rna = str(seq.transcribe())
         st.session_state.protein = str(seq.translate())
-
         st.session_state.orfs = find_orfs(dna)
 
-        st.success("Analysis Complete!")
+        st.success("✅ Analysis Complete!")
+
+# ================= EMPTY STATE =================
+if not st.session_state.dna:
+    st.info("👉 Enter a DNA sequence and click Analyze Sequence")
 
 # ================= TABS =================
 tab1, tab2, tab3, tab4 = st.tabs([
     "🧬 DNA Analysis",
-    "🧪 BLAST",
-    "🔎 NCBI",
+    "🧪 BLAST Search",
+    "🔎 NCBI Gene Search",
     "📄 Report"
 ])
 
-# ================= DNA ANALYSIS =================
+# ================= DNA TAB =================
 with tab1:
     if st.session_state.dna:
         dna = st.session_state.dna
 
-        st.subheader("DNA Analysis")
+        st.subheader("🧬 DNA Overview")
 
-        st.write(f"Length: {len(dna)}")
+        col1, col2 = st.columns(2)
 
+        col1.metric("Length", len(dna))
         gc = (dna.count("G") + dna.count("C")) / len(dna) * 100
-        st.write(f"GC Content: {gc:.2f}%")
+        col2.metric("GC Content", f"{gc:.2f}%")
 
         # Graph
-        counts = {
-            "A": dna.count("A"),
-            "T": dna.count("T"),
-            "G": dna.count("G"),
-            "C": dna.count("C")
-        }
+        counts = {"A": dna.count("A"), "T": dna.count("T"),
+                  "G": dna.count("G"), "C": dna.count("C")}
 
         fig, ax = plt.subplots()
         ax.bar(counts.keys(), counts.values())
@@ -102,13 +104,21 @@ with tab1:
         st.write(f"RNA: {st.session_state.rna}")
         st.write(f"Protein: {st.session_state.protein}")
 
-        # ORF
+        # ORF Highlight
         st.subheader("🧬 ORF Detection")
 
         if st.session_state.orfs:
+            highlighted = dna
+            for orf in st.session_state.orfs[:3]:
+                highlighted = highlighted.replace(
+                    orf["sequence"],
+                    f"[{orf['sequence']}]"
+                )
+
+            st.code(highlighted)
+
             for i, orf in enumerate(st.session_state.orfs[:5]):
-                st.write(f"ORF {i+1}: Start={orf['start']} End={orf['end']} Length={orf['length']}")
-                st.code(orf["sequence"][:80])
+                st.write(f"ORF {i+1}: Start={orf['start']} End={orf['end']}")
         else:
             st.warning("No ORFs found")
 
@@ -116,51 +126,58 @@ with tab1:
 with tab2:
     if st.session_state.dna:
 
-        if st.button("Run BLAST"):
+        if st.button("🚀 Run BLAST Search"):
             with st.spinner("Running BLAST..."):
                 try:
                     result = NCBIWWW.qblast("blastn", "nt", st.session_state.dna)
                     records = list(NCBIXML.parse(result))
                     st.session_state.blast = records[0]
-                    st.success("BLAST Completed")
+                    st.success("✅ BLAST Completed")
 
                 except:
-                    st.warning("Using Fake BLAST")
+                    st.warning("⚠ Using fallback BLAST")
 
                     class FakeHSP:
-                        def __init__(self):
-                            self.expect = 0.0001
-                            self.score = 50
-                            self.identities = 20
-                            self.align_length = 25
+                        expect = 0.0001
+                        score = 50
+                        identities = 20
+                        align_length = 25
 
                     class FakeAlign:
-                        def __init__(self):
-                            self.title = "Fake Gene Match - Homo sapiens"
-                            self.hsps = [FakeHSP()]
+                        title = "Demo Match - Homo sapiens"
+                        hsps = [FakeHSP()]
 
                     class FakeBlast:
-                        def __init__(self):
-                            self.alignments = [FakeAlign()]
+                        alignments = [FakeAlign()]
 
                     st.session_state.blast = FakeBlast()
 
+        # Show BLAST
         if st.session_state.blast:
+            best = None
+            best_e = float("inf")
+
             for align in st.session_state.blast.alignments[:3]:
                 for hsp in align.hsps[:1]:
-
                     identity = (hsp.identities / hsp.align_length) * 100
+
+                    if hsp.expect < best_e:
+                        best = align.title
+                        best_e = hsp.expect
 
                     st.markdown(f"### 🧬 {align.title}")
                     st.write(f"E-value: {hsp.expect}")
-                    st.write(f"Score: {hsp.score}")
                     st.write(f"Identity: {identity:.2f}%")
+
+            # BEST MATCH
+            if best:
+                st.success(f"🏆 Best Match: {best}")
 
 # ================= NCBI =================
 with tab3:
-    gene = st.text_input("Search gene (e.g. BRCA1)")
+    gene = st.text_input("Enter Gene Name (e.g., BRCA1)")
 
-    if st.button("Search NCBI"):
+    if st.button("🔍 Search NCBI Gene"):
         if gene:
             with st.spinner("Searching NCBI..."):
                 handle = Entrez.esearch(db="gene", term=gene, retmax=5)
@@ -171,7 +188,8 @@ with tab3:
 
     if st.session_state.ncbi_results:
         for gid in st.session_state.ncbi_results:
-            st.write(f"Gene ID: {gid}")
+            link = f"https://www.ncbi.nlm.nih.gov/gene/{gid}"
+            st.markdown(f"[🔗 Gene ID: {gid}]({link})")
 
 # ================= PDF =================
 def add_watermark(c, doc):
@@ -184,10 +202,8 @@ def add_watermark(c, doc):
     c.restoreState()
 
 def add_border(c, doc):
-    c.saveState()
     c.setLineWidth(2)
     c.rect(30, 30, 535, 750)
-    c.restoreState()
 
 def add_design(c, doc):
     add_border(c, doc)
@@ -199,54 +215,34 @@ def make_pdf():
     styles = getSampleStyleSheet()
     story = []
 
-    # DNA
-    if st.session_state.dna:
-        dna = st.session_state.dna
+    dna = st.session_state.dna
+
+    if dna:
         story.append(Paragraph("DNA Analysis", styles["Heading2"]))
-        story.append(Paragraph(f"Sequence: {dna}", styles["Normal"]))
         story.append(Paragraph(f"Length: {len(dna)}", styles["Normal"]))
 
         gc = (dna.count("G") + dna.count("C")) / len(dna) * 100
         story.append(Paragraph(f"GC Content: {gc:.2f}%", styles["Normal"]))
+
         story.append(Paragraph(f"RNA: {st.session_state.rna}", styles["Normal"]))
         story.append(Paragraph(f"Protein: {st.session_state.protein}", styles["Normal"]))
 
-    # ORF
     if st.session_state.orfs:
-        story.append(Spacer(1, 10))
         story.append(Paragraph("ORF Results", styles["Heading2"]))
+        for orf in st.session_state.orfs[:5]:
+            story.append(Paragraph(f"Start: {orf['start']} End: {orf['end']}", styles["Normal"]))
 
-        for i, orf in enumerate(st.session_state.orfs[:5]):
-            story.append(Paragraph(f"ORF {i+1}", styles["Normal"]))
-            story.append(Paragraph(f"Start: {orf['start']}", styles["Normal"]))
-            story.append(Paragraph(f"End: {orf['end']}", styles["Normal"]))
-            story.append(Paragraph(f"Length: {orf['length']}", styles["Normal"]))
-            story.append(Spacer(1, 5))
-
-    # NCBI
     if st.session_state.ncbi_results:
-        story.append(Spacer(1, 10))
         story.append(Paragraph("NCBI Results", styles["Heading2"]))
-
         for gid in st.session_state.ncbi_results:
             story.append(Paragraph(f"Gene ID: {gid}", styles["Normal"]))
 
-    # BLAST
     if st.session_state.blast:
-        story.append(Spacer(1, 10))
         story.append(Paragraph("BLAST Results", styles["Heading2"]))
-
         for align in st.session_state.blast.alignments[:3]:
-            for hsp in align.hsps[:1]:
-                identity = (hsp.identities / hsp.align_length) * 100
-
-                story.append(Paragraph(align.title, styles["Normal"]))
-                story.append(Paragraph(f"E-value: {hsp.expect}", styles["Normal"]))
-                story.append(Paragraph(f"Identity: {identity:.2f}%", styles["Normal"]))
-                story.append(Spacer(1, 5))
+            story.append(Paragraph(align.title, styles["Normal"]))
 
     doc.build(story, onFirstPage=add_design, onLaterPages=add_design)
-
     buffer.seek(0)
     return buffer
 
@@ -256,7 +252,7 @@ with tab4:
         pdf = make_pdf()
 
         st.download_button(
-            label="📄 Download Report",
+            label="📄 Download Full Report",
             data=pdf,
             file_name="dna_report.pdf",
             mime="application/pdf"
