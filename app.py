@@ -210,57 +210,52 @@ def add_border(c):
 def add_page_design(canvas, doc):
     add_border(canvas)
     add_watermark(canvas)
+# -------------------- PDF --------------------
 
 def make_pdf():
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer)
+
     styles = getSampleStyleSheet()
     story = []
 
-    # DNA
-    dna = st.session_state.get("dna", "")
-
-    story.append(Paragraph("DNA Analyzer Report", styles["Heading1"]))
-    story.append(Spacer(1, 10))
-
-    if dna:
-        story.append(Paragraph(f"Length: {len(dna)}", styles["Normal"]))
-        story.append(Paragraph(f"GC: {st.session_state.gc:.2f}%", styles["Normal"]))
-        story.append(Paragraph(f"Counts: {st.session_state.counts}", styles["Normal"]))
-        story.append(Paragraph(f"RNA: {st.session_state.rna}", styles["Normal"]))
-        story.append(Paragraph(f"Protein: {st.session_state.protein}", styles["Normal"]))
-    else:
-        story.append(Paragraph("No DNA data", styles["Normal"]))
+    # -------- DNA --------
+    if st.session_state.get("dna"):
+        story.append(Paragraph("DNA Analysis", styles["Heading2"]))
+        story.append(Paragraph(f"Length: {len(st.session_state.dna)}", styles["Normal"]))
 
     story.append(Spacer(1, 15))
 
-    # NCBI
-    if st.session_state.gene_results:
+    # -------- NCBI --------
+    if st.session_state.get("gene_results"):
         story.append(Paragraph("NCBI Gene Results", styles["Heading2"]))
         story.append(Paragraph(st.session_state.gene_results[:1500], styles["Normal"]))
 
     story.append(Spacer(1, 15))
 
-    # BLAST
-    if st.session_state.blast:
+    # -------- BLAST --------
+    if st.session_state.get("blast"):
+
         story.append(Paragraph("BLAST Results", styles["Heading2"]))
 
-for align in st.session_state.blast.alignments[:5]:
-    for hsp in align.hsps[:1]:
+        for align in st.session_state.blast.alignments[:5]:
+            for hsp in align.hsps[:1]:
 
-        identity_percent = (hsp.identities / hsp.align_length) * 100
+                identity_percent = (hsp.identities / hsp.align_length) * 100
 
-        story.append(Paragraph(f"<b>{align.title}</b>", styles["Normal"]))
-        story.append(Paragraph(f"E-value: {hsp.expect}", styles["Normal"]))
-        story.append(Paragraph(f"Score: {hsp.score}", styles["Normal"]))
-        story.append(Paragraph(f"Identity: {identity_percent:.2f}%", styles["Normal"]))
-        story.append(Paragraph(f"Alignment Length: {hsp.align_length}", styles["Normal"]))
-        story.append(Spacer(1, 10))
+                story.append(Paragraph(f"<b>{align.title}</b>", styles["Normal"]))
+                story.append(Paragraph(f"E-value: {hsp.expect}", styles["Normal"]))
+                story.append(Paragraph(f"Score: {hsp.score}", styles["Normal"]))
+                story.append(Paragraph(f"Identity: {identity_percent:.2f}%", styles["Normal"]))
+                story.append(Paragraph(f"Alignment Length: {hsp.align_length}", styles["Normal"]))
+                story.append(Spacer(1, 10))
 
-    doc.build(story, onFirstPage=add_page_design, onLaterPages=add_page_design)
+    # -------- BUILD --------
+    doc.build(story)
 
-     buffer.seek(0)
-      return buffer
+    buffer.seek(0)
+    return buffer
 
 # ------------------ DOWNLOAD ------------------
 if st.button("Download Report"):
