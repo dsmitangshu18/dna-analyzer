@@ -156,32 +156,47 @@ if st.button("Run BLAST Search"):
 # -------------------- SHOW BLAST --------------------
 if st.session_state.get("blast"):
 
-    st.subheader("🔍 BLAST Results")
+    st.subheader("🔎 BLAST Results")
+
+    best_match = None
+    best_evalue = float("inf")
+
+    found = False
 
     for align in st.session_state.blast.alignments[:5]:
         for hsp in align.hsps[:1]:
 
+            found = True
+
+            # Calculate identity %
             identity_percent = (hsp.identities / hsp.align_length) * 100
 
-            # 👇 PUT YOUR CONTAINER CODE HERE
+            # Track BEST match (lowest E-value)
+            if hsp.expect < best_evalue:
+                best_evalue = hsp.expect
+                best_match = align.title
+
+            # -------- UI BLOCK --------
             with st.container():
                 st.markdown(f"### 🧬 {align.title}")
 
                 col1, col2 = st.columns(2)
 
                 col1.write(f"**E-value:** {hsp.expect}")
-                col1.write(f"**Score:** {hsp.score}")
+                col1.write(f"**Score:** {getattr(hsp, 'score', 'N/A')}")
 
                 col2.write(f"**Identity:** {identity_percent:.2f}%")
                 col2.write(f"**Length:** {hsp.align_length}")
 
                 st.divider()
 
-    # Show best match
+    # If nothing found
+    if not found:
+        st.warning("No alignments found.")
+
+    # Show BEST MATCH
     if best_match:
-        st.success(f"🏆 Best Match: {best_match}")
-    else:
-        st.warning("No strong matches found.")
+        st.success(f"🏆 Best Match: {best_match} (E-value: {best_evalue})")
 
 # ------------------ PDF ------------------
 
