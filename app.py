@@ -229,7 +229,7 @@ def add_page_design(canvas, doc):
 
 def make_pdf():
 
-    buffer = io.BytesIO()
+    buffer = BytesIO()
     doc = SimpleDocTemplate(buffer)
 
     styles = getSampleStyleSheet()
