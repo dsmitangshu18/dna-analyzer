@@ -120,7 +120,7 @@ if st.button("Run BLAST Search"):
 
                 if blast_records and len(blast_records) > 0:
                     st.session_state.blast = blast_records[0]
-                    st.success("✅ Real BLAST completed!")
+                    st.success("🧬Sequence alignment completed!")
 
                 else:
                     raise Exception("Empty BLAST result")
