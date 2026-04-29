@@ -300,7 +300,7 @@ if st.session_state.get("dna"):
     # ---------------- BUILD ----------------
     doc.build(story, onFirstPage=add_design, onLaterPages=add_design)
 
-    buffer.seek(0)
+     buffer.seek(0)
      return buffer
 
 # ----------- DOWNLOAD BUTTON -----------
