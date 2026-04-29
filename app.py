@@ -230,17 +230,29 @@ def make_pdf():
         add_border(canvas)
         add_watermark(canvas, doc)
 
-    # ---------------- DNA SECTION ----------------
-    if st.session_state.get("dna"):
-        dna = st.session_state.dna
+# ---------------- DNA SECTION ----------------
+if st.session_state.get("dna"):
+    dna = st.session_state.dna
 
+    if len(dna) > 0:
+
+        # ✅ Calculate GC once
+        gc = (dna.count("G") + dna.count("C")) / len(dna) * 100
+
+        # ---------------- UI DISPLAY ----------------
+        st.subheader("🧬 DNA Analysis")
+        st.write(f"Sequence Length: {len(dna)}")
+        st.write(f"🧬 GC Content: {gc:.2f}%")
+
+        # ---------------- PDF CONTENT ----------------
         story.append(Paragraph("DNA Analysis", styles["Heading2"]))
         story.append(Spacer(1, 10))
 
         story.append(Paragraph(f"Sequence: {dna}", styles["Normal"]))
         story.append(Paragraph(f"Length: {len(dna)}", styles["Normal"]))
+        story.append(Paragraph(f"GC Content: {gc:.2f}%", styles["Normal"]))
 
-        # Nucleotide distribution
+        # ---------------- NUCLEOTIDE DISTRIBUTION ----------------
         counts = {
             "A": dna.count("A"),
             "T": dna.count("T"),
@@ -250,8 +262,9 @@ def make_pdf():
 
         story.append(Spacer(1, 10))
         story.append(Paragraph("Nucleotide Distribution:", styles["Heading3"]))
-        for k, v in counts.items():
-            story.append(Paragraph(f"{k}: {v}", styles["Normal"]))
+
+        for base, count in counts.items():
+            story.append(Paragraph(f"{base}: {count}", styles["Normal"]))
 
     # ---------------- PROTEIN ----------------
     if st.session_state.get("protein"):
