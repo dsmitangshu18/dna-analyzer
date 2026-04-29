@@ -105,98 +105,113 @@ if st.session_state.gene_results:
     st.subheader("📄 Gene Results")
     st.text_area("Preview", st.session_state.gene_results[:2000], height=300)
 
-# -------------------- BLAST --------------------
-st.subheader("🔬 BLAST")
 
-if st.button("Run BLAST Search"):
+
+# ---------------- TABS UI ----------------
+tab1, tab2, tab3, tab4 = st.tabs([
+    "🧬 DNA Analysis",
+    "🧪 BLAST",
+    "🔬 Gene Search",
+    "📄 Report"
+])
+
+# ---------------- DNA TAB ----------------
+with tab1:
     if st.session_state.get("dna"):
+        dna = st.session_state.dna
 
-        with st.spinner("Running BLAST..."):
-            try:
-                from Bio.Blast import NCBIWWW, NCBIXML
+        st.subheader("🧬 DNA Analysis")
 
-                result = NCBIWWW.qblast("blastn", "nt", st.session_state.dna)
-                blast_records = list(NCBIXML.parse(result))
+        st.write(f"Length: {len(dna)}")
 
-                if blast_records and len(blast_records) > 0:
-                    st.session_state.blast = blast_records[0]
-                    st.success("🧬Sequence alignment completed!")
+        if len(dna) > 0:
+            gc = (dna.count("G") + dna.count("C")) / len(dna) * 100
+            st.write(f"GC Content: {gc:.2f}%")
 
-                else:
-                    raise Exception("Empty BLAST result")
+# ---------------- BLAST TAB ----------------
+with tab2:
+    st.subheader("🧪 BLAST")
 
-            except Exception as e:
-                st.warning("⚠️ Real BLAST failed. Showing demo results instead.")
+    if st.button("Run BLAST Search"):
+        if st.session_state.get("dna"):
+            with st.spinner("Running BLAST..."):
+                try:
+                    result = NCBIWWW.qblast("blastn", "nt", st.session_state.dna)
+                    blast_records = list(NCBIXML.parse(result))
 
-                # -------- FAKE BLAST (FALLBACK) --------
-                class FakeHSP:
-                    def __init__(self):
-                        self.expect = 0.0001
-                        self.score = 120
-                        self.align_length = 85
-                        self.identities = 75
-                        self.query = "ATGCGTACGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAG"
-                        self.match = "||||||||||||||||||||||||||||||||||||||||"
-                        self.sbjct = "ATGCGTACGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAG"
+                    if blast_records:
+                        st.session_state.blast = blast_records[0]
+                        st.success("✅ BLAST Search Completed")
 
-                class FakeAlign:
-                    def __init__(self):
-                        self.title = "Fake Gene Match - Homo sapiens"
-                        self.hsps = [FakeHSP()]
+                    else:
+                        raise Exception("Empty BLAST")
 
-                class FakeBlast:
-                    def __init__(self):
-                        self.alignments = [FakeAlign(), FakeAlign(), FakeAlign()]
+                except Exception:
+                    st.warning("⚠️ BLAST failed. Showing demo results.")
 
-                st.session_state.blast = FakeBlast()
+                    # -------- FAKE BLAST --------
+                    class FakeHSP:
+                        def __init__(self):
+                            self.expect = 0.0001
+                            self.score = 100
+                            self.identities = 90
+                            self.align_length = 100
 
-    else:
-        st.warning("⚠️ Run DNA analysis first!")
+                    class FakeAlign:
+                        def __init__(self):
+                            self.title = "Demo Gene Match - Homo sapiens"
+                            self.hsps = [FakeHSP()]
 
-# -------------------- SHOW BLAST --------------------
-if st.session_state.get("blast"):
+                    class FakeBlast:
+                        def __init__(self):
+                            self.alignments = [FakeAlign(), FakeAlign(), FakeAlign()]
 
-    st.subheader("🔎 BLAST Results")
+                    st.session_state.blast = FakeBlast()
+        else:
+            st.warning("Enter DNA first!")
 
-    best_match = None
-    best_evalue = float("inf")
+    # -------- SHOW BLAST --------
+    if st.session_state.get("blast"):
+        st.subheader("🔍 BLAST Results")
 
-    found = False
+        for align in st.session_state.blast.alignments[:3]:
+            for hsp in align.hsps[:1]:
 
-    for align in st.session_state.blast.alignments[:5]:
-        for hsp in align.hsps[:1]:
+                identity = (hsp.identities / hsp.align_length) * 100
 
-            found = True
+                with st.container():
+                    st.markdown(f"### 🧬 {align.title}")
 
-            # Calculate identity %
-            identity_percent = (hsp.identities / hsp.align_length) * 100
+                    col1, col2 = st.columns(2)
 
-            # Track BEST match (lowest E-value)
-            if hsp.expect < best_evalue:
-                best_evalue = hsp.expect
-                best_match = align.title
+                    col1.write(f"E-value: {hsp.expect}")
+                    col1.write(f"Score: {getattr(hsp, 'score', 'N/A')}")
 
-            # -------- UI BLOCK --------
-            with st.container():
-                st.markdown(f"### 🧬 {align.title}")
+                    col2.write(f"Identity: {identity:.2f}%")
+                    col2.write(f"Length: {hsp.align_length}")
 
-                col1, col2 = st.columns(2)
+                    st.divider()
 
-                col1.write(f"**E-value:** {hsp.expect}")
-                col1.write(f"**Score:** {getattr(hsp, 'score', 'N/A')}")
+# ---------------- GENE TAB ----------------
+with tab3:
+    st.subheader("🔬 Gene Search")
 
-                col2.write(f"**Identity:** {identity_percent:.2f}%")
-                col2.write(f"**Length:** {hsp.align_length}")
+    if st.session_state.get("gene_results"):
+        st.write(st.session_state.gene_results)
 
-                st.divider()
+# ---------------- REPORT TAB ----------------
+with tab4:
+    st.subheader("📄 Download Report")
 
-    # If nothing found
-    if not found:
-        st.warning("No alignments found.")
+    if st.session_state.get("dna"):
+        pdf = make_pdf()
 
-    # Show BEST MATCH
-    if best_match:
-        st.success(f"🏆 Best Match: {best_match} (E-value: {best_evalue})")
+        st.download_button(
+            label="📄 Download Full Report",
+            data=pdf,
+            file_name="dna_report.pdf",
+            mime="application/pdf"
+        )
 
 # ----------- Full PDF Section -----------
 from io import BytesIO
