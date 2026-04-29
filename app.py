@@ -105,16 +105,17 @@ if st.session_state.gene_results:
     st.subheader("📄 Gene Results")
     st.text_area("Preview", st.session_state.gene_results[:2000], height=300)
 
-# ---------------- BLAST ----------------
+# -------------------- BLAST --------------------
 st.subheader("🔬 BLAST")
 
-# 🔴 REAL BLAST BUTTON
-if st.button("Run BLAST"):
+if st.button("Run BLAST Search"):
     if st.session_state.get("dna"):
+
         with st.spinner("Running BLAST..."):
             try:
-                result = NCBIWWW.qblast("blastn", "nt", st.session_state.dna)
+                from Bio.Blast import NCBIWWW, NCBIXML
 
+                result = NCBIWWW.qblast("blastn", "nt", st.session_state.dna)
                 blast_records = list(NCBIXML.parse(result))
 
                 if blast_records and len(blast_records) > 0:
@@ -127,55 +128,60 @@ if st.button("Run BLAST"):
             except Exception as e:
                 st.warning("⚠️ Real BLAST failed. Showing demo results instead.")
 
-                # 👇 FALLBACK FAKE BLAST
+                # -------- FAKE BLAST (FALLBACK) --------
                 class FakeHSP:
                     def __init__(self):
                         self.expect = 0.0001
+                        self.score = 120
+                        self.align_length = 85
+                        self.identities = 75
+                        self.query = "ATGCGTACGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAG"
+                        self.match = "||||||||||||||||||||||||||||||||||||||||"
+                        self.sbjct = "ATGCGTACGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAG"
 
                 class FakeAlign:
                     def __init__(self):
-                        self.title = "Fallback Gene Match - Homo sapiens"
+                        self.title = "Fake Gene Match - Homo sapiens"
                         self.hsps = [FakeHSP()]
 
                 class FakeBlast:
                     def __init__(self):
-                        self.alignments = [FakeAlign(), FakeAlign()]
+                        self.alignments = [FakeAlign(), FakeAlign(), FakeAlign()]
 
                 st.session_state.blast = FakeBlast()
+
     else:
-        st.warning("Run DNA analysis first!")
+        st.warning("⚠️ Run DNA analysis first!")
 
-# 🟢 👉 PASTE FAKE BLAST BUTTON HERE 👇
-if st.button("TEST BLAST (FAKE)"):
-    class FakeHSP:
-        expect = 0.0001
-
-    class FakeAlign:
-        title = "Fake Gene Match - Homo sapiens"
-        hsps = [FakeHSP()]
-
-    class FakeBlast:
-        alignments = [FakeAlign(), FakeAlign()]
-
-    st.session_state.blast = FakeBlast()
-
-# DEBUG
-#st.write("DEBUG BLAST:", st.session_state.get("blast"))
-
-# SHOW BLAST
+# -------------------- SHOW BLAST --------------------
 if st.session_state.get("blast"):
-    st.subheader("🔎 BLAST Results")
 
-    found = False
+    st.subheader("🔍 BLAST Results")
 
-    for align in st.session_state.blast.alignments[:3]:
+    for align in st.session_state.blast.alignments[:5]:
         for hsp in align.hsps[:1]:
-            found = True
-            st.write(align.title)
-            st.write(f"E-value: {hsp.expect}")
 
-    if not found:
-        st.warning("No alignments found.")
+            identity_percent = (hsp.identities / hsp.align_length) * 100
+
+            # 👇 PUT YOUR CONTAINER CODE HERE
+            with st.container():
+                st.markdown(f"### 🧬 {align.title}")
+
+                col1, col2 = st.columns(2)
+
+                col1.write(f"**E-value:** {hsp.expect}")
+                col1.write(f"**Score:** {hsp.score}")
+
+                col2.write(f"**Identity:** {identity_percent:.2f}%")
+                col2.write(f"**Length:** {hsp.align_length}")
+
+                st.divider()
+
+    # Show best match
+    if best_match:
+        st.success(f"🏆 Best Match: {best_match}")
+    else:
+        st.warning("No strong matches found.")
 
 # ------------------ PDF ------------------
 
@@ -239,10 +245,17 @@ def make_pdf():
     if st.session_state.blast:
         story.append(Paragraph("BLAST Results", styles["Heading2"]))
 
-        for align in st.session_state.blast.alignments[:2]:
-            story.append(Paragraph(align.title, styles["Normal"]))
-            for hsp in align.hsps [:1]:
-                story.append(Paragraph(f"E-value: {hsp.expect}", styles["Normal"]))
+for align in st.session_state.blast.alignments[:5]:
+    for hsp in align.hsps[:1]:
+
+        identity_percent = (hsp.identities / hsp.align_length) * 100
+
+        story.append(Paragraph(f"<b>{align.title}</b>", styles["Normal"]))
+        story.append(Paragraph(f"E-value: {hsp.expect}", styles["Normal"]))
+        story.append(Paragraph(f"Score: {hsp.score}", styles["Normal"]))
+        story.append(Paragraph(f"Identity: {identity_percent:.2f}%", styles["Normal"]))
+        story.append(Paragraph(f"Alignment Length: {hsp.align_length}", styles["Normal"]))
+        story.append(Spacer(1, 10))
 
     doc.build(story, onFirstPage=add_page_design, onLaterPages=add_page_design)
 
