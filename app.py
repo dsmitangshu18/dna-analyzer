@@ -259,8 +259,8 @@ for align in st.session_state.blast.alignments[:5]:
 
     doc.build(story, onFirstPage=add_page_design, onLaterPages=add_page_design)
 
-      buffer.seek(0)
-       return buffer
+     buffer.seek(0)
+      return buffer
 
 # ------------------ DOWNLOAD ------------------
 if st.button("Download Report"):
