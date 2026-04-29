@@ -219,7 +219,7 @@ def make_pdf():
         canvas.setFont("Helvetica", 40)
         canvas.setFillGray(0.9)
         canvas.rotate(45)
-        canvas.drawString(200, 0, "DNA ANALYZER")
+        canvas.drawString(200, 0, "SMI DNA ANALYZER")
         canvas.restoreState()
 
     def add_border(canvas):
