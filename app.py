@@ -198,13 +198,14 @@ if st.session_state.get("blast"):
     if best_match:
         st.success(f"🏆 Best Match: {best_match} (E-value: {best_evalue})")
 
-# -------------------- PDF SECTION --------------------
-
+# ----------- Full PDF Section -----------
 from io import BytesIO
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import letter
 
+
+# ----------- PDF FUNCTION -----------
 def make_pdf():
 
     buffer = BytesIO()
@@ -213,92 +214,98 @@ def make_pdf():
     styles = getSampleStyleSheet()
     story = []
 
-    # ---------------- WATERMARK + BORDER ----------------
+    # ----------- WATERMARK -----------
     def add_watermark(canvas, doc):
         canvas.saveState()
         canvas.setFont("Helvetica", 40)
         canvas.setFillGray(0.9)
         canvas.rotate(45)
-        canvas.drawString(200, 0, "SMI DNA ANALYZER")
+        canvas.drawString(150, -50, "GeneScope AI")  # 🔁 change text here
         canvas.restoreState()
 
+    # ----------- BORDER -----------
     def add_border(canvas):
         canvas.setLineWidth(2)
         canvas.rect(20, 20, 550, 750)
 
+    # ----------- DESIGN COMBINED -----------
     def add_design(canvas, doc):
         add_border(canvas)
         add_watermark(canvas, doc)
 
-# ---------------- DNA SECTION ----------------
-if st.session_state.get("dna"):
-    dna = st.session_state.dna
+    # ================= DNA SECTION =================
+    if st.session_state.get("dna"):
+        dna = st.session_state.dna
 
-    if len(dna) > 0:
+        if dna and len(dna) > 0:
 
-        # ✅ Calculate GC once
-        gc = (dna.count("G") + dna.count("C")) / len(dna) * 100
+            # GC content
+            gc = (dna.count("G") + dna.count("C")) / len(dna) * 100
 
-        # ---------------- UI DISPLAY ----------------
-        st.subheader("🧬 DNA Analysis")
-        st.write(f"Sequence Length: {len(dna)}")
-        st.write(f"🧬 GC Content: {gc:.2f}%")
+            story.append(Paragraph("DNA Analysis", styles["Heading2"]))
+            story.append(Spacer(1, 10))
 
-        # ---------------- PDF CONTENT ----------------
-        story.append(Paragraph("DNA Analysis", styles["Heading2"]))
-        story.append(Spacer(1, 10))
+            story.append(Paragraph(f"Sequence: {dna}", styles["Normal"]))
+            story.append(Paragraph(f"Length: {len(dna)}", styles["Normal"]))
+            story.append(Paragraph(f"GC Content: {gc:.2f}%", styles["Normal"]))
 
-        story.append(Paragraph(f"Sequence: {dna}", styles["Normal"]))
-        story.append(Paragraph(f"Length: {len(dna)}", styles["Normal"]))
-        story.append(Paragraph(f"GC Content: {gc:.2f}%", styles["Normal"]))
+            # Nucleotide distribution
+            counts = {
+                "A": dna.count("A"),
+                "T": dna.count("T"),
+                "G": dna.count("G"),
+                "C": dna.count("C"),
+            }
 
-        # ---------------- NUCLEOTIDE DISTRIBUTION ----------------
-        counts = {
-            "A": dna.count("A"),
-            "T": dna.count("T"),
-            "G": dna.count("G"),
-            "C": dna.count("C"),
-        }
+            story.append(Spacer(1, 10))
+            story.append(Paragraph("Nucleotide Distribution:", styles["Heading3"]))
 
-        story.append(Spacer(1, 10))
-        story.append(Paragraph("Nucleotide Distribution:", styles["Heading3"]))
+            for base, count in counts.items():
+                story.append(Paragraph(f"{base}: {count}", styles["Normal"]))
 
-        for base, count in counts.items():
-            story.append(Paragraph(f"{base}: {count}", styles["Normal"]))
-
-    # ---------------- PROTEIN ----------------
+    # ================= PROTEIN =================
     if st.session_state.get("protein"):
         story.append(Spacer(1, 15))
         story.append(Paragraph("Protein Translation", styles["Heading2"]))
         story.append(Paragraph(st.session_state.protein, styles["Normal"]))
 
-    # ---------------- NCBI GENE SEARCH ----------------
+    # ================= NCBI GENE SEARCH =================
     if st.session_state.get("gene_results"):
         story.append(Spacer(1, 15))
         story.append(Paragraph("NCBI Gene Search Results", styles["Heading2"]))
 
-        gene_text = st.session_state.gene_results[:1500]  # limit for PDF
+        gene_text = str(st.session_state.gene_results)
+        gene_text = gene_text[:1500]  # limit size for PDF
+
         story.append(Paragraph(gene_text, styles["Normal"]))
 
-    # ---------------- BLAST ----------------
+    # ================= BLAST =================
     if st.session_state.get("blast"):
         story.append(Spacer(1, 15))
         story.append(Paragraph("BLAST Results", styles["Heading2"]))
 
-        for align in st.session_state.blast.alignments[:5]:
-            for hsp in align.hsps[:1]:
+        try:
+            for align in st.session_state.blast.alignments[:5]:
+                for hsp in align.hsps[:1]:
 
-                identity_percent = (hsp.identities / hsp.align_length) * 100
+                    identity_percent = (hsp.identities / hsp.align_length) * 100
 
-                story.append(Spacer(1, 10))
-                story.append(Paragraph(f"<b>{align.title}</b>", styles["Normal"]))
-                story.append(Paragraph(f"E-value: {hsp.expect}", styles["Normal"]))
-                story.append(Paragraph(f"Score: {hsp.score}", styles["Normal"]))
-                story.append(Paragraph(f"Identity: {identity_percent:.2f}%", styles["Normal"]))
-                story.append(Paragraph(f"Alignment Length: {hsp.align_length}", styles["Normal"]))
+                    story.append(Spacer(1, 10))
+                    story.append(Paragraph(f"<b>{align.title}</b>", styles["Normal"]))
+                    story.append(Paragraph(f"E-value: {hsp.expect}", styles["Normal"]))
+                    story.append(Paragraph(f"Score: {hsp.score}", styles["Normal"]))
+                    story.append(Paragraph(f"Identity: {identity_percent:.2f}%", styles["Normal"]))
+                    story.append(Paragraph(f"Alignment Length: {hsp.align_length}", styles["Normal"]))
 
-    # ---------------- BUILD ----------------
-    doc.build(story, onFirstPage=add_design, onLaterPages=add_design)
+        except Exception:
+            story.append(Paragraph("BLAST data not available.", styles["Normal"]))
+
+    # ================= BUILD =================
+    doc.build(
+        story,
+        onFirstPage=add_design,
+        onLaterPages=add_design
+    )
 
     buffer.seek(0)
     return buffer
