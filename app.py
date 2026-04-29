@@ -124,31 +124,63 @@ with tab2:
 # ---------------- NCBI TAB ----------------
 with tab3:
 
+    st.markdown("##🔬 NCBI Gene Explorer")
+
     query = st.text_input("Search gene (e.g., BRCA1)")
 
-    if st.button("🔬 Search NCBI"):
-        handle = Entrez.esearch(db="gene", term=query, retmax=5)
-        record = Entrez.read(handle)
-        ids = record["IdList"]
+    if st.button("🔍 Search NCBI"):
 
-        results = []
+        if not query:
+            st.warning("Please enter a gene name")
+        else:
+            try:
+                handle = Entrez.esearch(db="gene", term=query, retmax=5)
+                record = Entrez.read(handle)
+                ids = record.get("IdList", [])
 
-        for gene_id in ids:
-            summary = Entrez.esummary(db="gene", id=gene_id)
-            data = Entrez.read(summary)
+                results = []
 
-            name = data[0]["Name"]
-            desc = data[0]["Description"]
+                if not ids:
+                    st.warning("No results found")
+                else:
+                    for gene_id in ids:
+                        try:
+                            summary = Entrez.esummary(db="gene", id=gene_id)
+                            data = Entrez.read(summary)
 
-            results.append(f"{name} → {desc}")
+                            gene_info = data[0]
 
-        st.session_state.gene_results = results
+                            # SAFE extraction (no crash now)
+                            name = gene_info.get("Name", "Unknown Gene")
+                            desc = gene_info.get("Description", "No description available")
+                            org = gene_info.get("Organism", {}).get("ScientificName", "Unknown organism")
 
+                            results.append({
+                                "name": name,
+                                "desc": desc,
+                                "org": org
+                            })
+
+                        except:
+                            continue  # skip broken entries
+
+                    st.session_state.gene_results = results
+
+            except Exception as e:
+                st.error("⚠ Failed to fetch NCBI data")
+
+    # -------- DISPLAY RESULTS --------
     if st.session_state.get("gene_results"):
-        st.subheader("🔬 Gene Results")
 
-        for res in st.session_state.gene_results:
-            st.success(res)
+        st.markdown("### 🧬 Results")
+
+        for gene in st.session_state.gene_results:
+
+            with st.container():
+                st.markdown(f"### 🧬 {gene['name']}")
+                st.write(f"📌 {gene['desc']}")
+                st.caption(f"🧫 Organism: {gene['org']}")
+                st.divider()
 
 # ---------------- PDF ----------------
 def make_pdf():
