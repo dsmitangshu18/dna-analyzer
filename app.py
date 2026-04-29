@@ -200,109 +200,106 @@ if st.session_state.get("blast"):
 
 # -------------------- PDF SECTION --------------------
 
+from io import BytesIO
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-from io import BytesIO
-
-# ---------- DESIGN FUNCTIONS ----------
-
-def add_border(c):
-    c.setLineWidth(2)
-    c.rect(20, 20, 550, 750)
-
-def add_watermark(c):
-    c.saveState()
-    c.setFont("Helvetica", 40)
-    c.setFillGray(0.9)
-    c.drawCentredString(300, 400, "DNA Analyzer")
-    c.restoreState()
-
-def add_page_design(c, doc):
-    add_border(c)
-    add_watermark(c)
-
-# ---------- PDF GENERATOR ----------
 
 def make_pdf():
-    buffer = BytesIO()
 
+    buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
+
     styles = getSampleStyleSheet()
     story = []
 
-    # -------- DNA SECTION --------
-    if st.session_state.get("dna"):
+    # ---------------- WATERMARK + BORDER ----------------
+    def add_watermark(canvas, doc):
+        canvas.saveState()
+        canvas.setFont("Helvetica", 40)
+        canvas.setFillGray(0.9)
+        canvas.rotate(45)
+        canvas.drawString(200, 0, "DNA ANALYZER")
+        canvas.restoreState()
 
+    def add_border(canvas):
+        canvas.setLineWidth(2)
+        canvas.rect(20, 20, 550, 750)
+
+    def add_design(canvas, doc):
+        add_border(canvas)
+        add_watermark(canvas, doc)
+
+    # ---------------- DNA SECTION ----------------
+    if st.session_state.get("dna"):
         dna = st.session_state.dna
 
         story.append(Paragraph("DNA Analysis", styles["Heading2"]))
+        story.append(Spacer(1, 10))
+
+        story.append(Paragraph(f"Sequence: {dna}", styles["Normal"]))
         story.append(Paragraph(f"Length: {len(dna)}", styles["Normal"]))
+
+        # Nucleotide distribution
+        counts = {
+            "A": dna.count("A"),
+            "T": dna.count("T"),
+            "G": dna.count("G"),
+            "C": dna.count("C"),
+        }
+
         story.append(Spacer(1, 10))
+        story.append(Paragraph("Nucleotide Distribution:", styles["Heading3"]))
+        for k, v in counts.items():
+            story.append(Paragraph(f"{k}: {v}", styles["Normal"]))
 
-        story.append(Paragraph("<b>Sequence:</b>", styles["Normal"]))
-        story.append(Paragraph(dna[:1000], styles["Normal"]))
-        story.append(Spacer(1, 10))
+    # ---------------- PROTEIN ----------------
+    if st.session_state.get("protein"):
+        story.append(Spacer(1, 15))
+        story.append(Paragraph("Protein Translation", styles["Heading2"]))
+        story.append(Paragraph(st.session_state.protein, styles["Normal"]))
 
-        if st.session_state.get("gc"):
-            story.append(Paragraph(f"GC Content: {st.session_state.gc}%", styles["Normal"]))
+    # ---------------- NCBI GENE SEARCH ----------------
+    if st.session_state.get("gene_results"):
+        story.append(Spacer(1, 15))
+        story.append(Paragraph("NCBI Gene Search Results", styles["Heading2"]))
 
-        story.append(Spacer(1, 20))
+        gene_text = st.session_state.gene_results[:1500]  # limit for PDF
+        story.append(Paragraph(gene_text, styles["Normal"]))
 
-    # -------- BLAST SECTION --------
+    # ---------------- BLAST ----------------
     if st.session_state.get("blast"):
-
+        story.append(Spacer(1, 15))
         story.append(Paragraph("BLAST Results", styles["Heading2"]))
-        story.append(Spacer(1, 10))
-
-        best_match = None
-        best_evalue = float("inf")
 
         for align in st.session_state.blast.alignments[:5]:
             for hsp in align.hsps[:1]:
 
                 identity_percent = (hsp.identities / hsp.align_length) * 100
 
-                # Track best match
-                if hsp.expect < best_evalue:
-                    best_evalue = hsp.expect
-                    best_match = align.title
-
+                story.append(Spacer(1, 10))
                 story.append(Paragraph(f"<b>{align.title}</b>", styles["Normal"]))
                 story.append(Paragraph(f"E-value: {hsp.expect}", styles["Normal"]))
-                story.append(Paragraph(f"Score: {getattr(hsp, 'score', 'N/A')}", styles["Normal"]))
+                story.append(Paragraph(f"Score: {hsp.score}", styles["Normal"]))
                 story.append(Paragraph(f"Identity: {identity_percent:.2f}%", styles["Normal"]))
                 story.append(Paragraph(f"Alignment Length: {hsp.align_length}", styles["Normal"]))
-                story.append(Spacer(1, 12))
 
-        # -------- BEST MATCH --------
-        if best_match:
-            story.append(Spacer(1, 10))
-            story.append(Paragraph("<b>Best Match:</b>", styles["Heading3"]))
-            story.append(Paragraph(best_match, styles["Normal"]))
-            story.append(Paragraph(f"E-value: {best_evalue}", styles["Normal"]))
-
-    # -------- BUILD PDF --------
-    doc.build(
-        story,
-        onFirstPage=add_page_design,
-        onLaterPages=add_page_design
-    )
+    # ---------------- BUILD ----------------
+    doc.build(story, onFirstPage=add_design, onLaterPages=add_design)
 
     buffer.seek(0)
     return buffer
 
-# ---------- DOWNLOAD BUTTON ----------
+# ----------- DOWNLOAD BUTTON -----------
+if st.session_state.get("dna"):
+    pdf = make_pdf()
 
-pdf = make_pdf()
-
-st.download_button(
-    label="📄 Download Report",
-    data=pdf,
-    file_name="dna_report.pdf",
-    mime="application/pdf"
-)
+    st.download_button(
+        label="📄 Download Full Report",
+        data=pdf,
+        file_name="dna_report.pdf",
+        mime="application/pdf"
+    )
 
 # ------------------ FOOTER ------------------
 st.markdown("---")
